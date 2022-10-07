@@ -1,0 +1,264 @@
+---
+title: "Fig5_sup2"
+author: "Frederic Theunissen & Lily Xue Gong"
+date: "5/24/2022"
+  pdf_document: default
+html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Loading up the depencies
+
+```{r libraries}
+library(knitr)
+library(dplyr)  # for filter()
+
+library(kableExtra) # for plot tables
+library(PairedData) # paired t test
+
+```
+
+## Setting up the data frames 
+Here we load the data and generate 3 new data frames to separate wholeBrain, Broca and Temporal Cortex.
+Note that we set the diphone as the base level.
+
+
+```{r dataload thirdOrder vs semantic, echo=FALSE}
+
+# Read the data for thirdOrder vs semantic
+data_roi_thirdSem <- read.csv("../stats_data/df_perfIndVoxthirdSem.csv")
+
+# Clean up
+# data_roi_thirdSem <- na.omit(data_roi_thirdSem)
+data_roi_thirdSem <- subset(data_roi_thirdSem, select = -c(X))
+
+
+# Split into 3 different data frames
+dataLC <- filter(data_roi_thirdSem, rois != "wholeBrain" & rois != "Broca" )
+attach(dataLC)
+rois <-factor(rois)
+levels(rois) <- c("ACunique", "STG", "STS", "LTCunique")
+models <-factor(models)
+levels(models) <- c("thirdOrder", "semantic", ordered=TRUE)
+detach(dataLC)
+
+dataWB <- filter(data_roi_thirdSem, rois == "wholeBrain")
+dataWB <- subset(dataWB, select = -c(rois))
+attach(dataWB)
+models <-factor(models)
+levels(models) <- c("thirdOrder", "semantic", ordered=TRUE)
+detach(dataWB)
+
+
+dataBroca <- filter(data_roi_thirdSem, rois == "Broca")
+dataBroca <- subset(dataBroca, select = -c(rois))
+attach(dataBroca)
+models <-factor(models)
+levels(models) <- c("thirdOrder", "semantic", ordered=TRUE)
+detach(dataBroca)
+```
+
+
+```{r Individual summary table preparation sem vs thirdOrder, echo=FALSE}
+subject.names <- unique(data_roi_thirdSem$subjects)
+rois_name <- unique(data_roi_thirdSem$rois)
+nrois <- length(rois_name)
+nsubjects <- length(subject.names)
+sem_mean <- array(dim=c(nsubjects, nrois))
+third_mean <- array(dim=c(nsubjects, nrois))
+dprime_ind <- array(dim=c(nsubjects, nrois))
+
+i <- 1
+for (sname in subject.names) {
+  for (irois in 1:nrois) {
+    data.subject <- data_roi_thirdSem[data_roi_thirdSem$subjects==sname & data_roi_thirdSem$rois==rois_name[irois], ]
+    sem_mean[i,irois] <- mean(na.omit(data.subject[data.subject$models == "semantic",]$performance))
+    third_mean[i,irois] <- mean(na.omit(data.subject[data.subject$models == "thirdOrder",]$performance))
+    std_tmp <- sd(na.omit(data.subject[data.subject$models == "semantic",]$performance) - na.omit(data.subject[data.subject$models == "thirdOrder",]$performance))
+    dprime_ind[i,irois] <- (sem_mean[i,irois] - third_mean[i,irois])/std_tmp 
+  }
+  i <- i + 1
+}
+
+sem_mean_all <- array(dim=c(nsubjects+2, nrois))
+third_mean_all <- array(dim=c(nsubjects+2, nrois))
+dprime_ind_all <- array(dim=c(nsubjects+2, nrois))
+
+sem_mean_all[1:11,] <- sem_mean
+third_mean_all[1:11,] <- third_mean
+dprime_ind_all[1:11,] <- dprime_ind
+
+sem_mean_all[12,] <- colMeans(sem_mean)
+sem_mean_all[13,] <- GMCM:::colSds(sem_mean)/sqrt(nsubjects)
+third_mean_all[12,] <- colMeans(third_mean)
+third_mean_all[13,] <- GMCM:::colSds(third_mean)/sqrt(nsubjects)
+dprime_ind_all[12,] <- colMeans(dprime_ind)
+dprime_ind_all[13,] <- GMCM:::colSds(dprime_ind)/sqrt(nsubjects)
+
+sub_label <- array(dim=nsubjects+2)
+sub_label[1:11] <- 1:nsubjects
+sub_label[12] <- "average"
+sub_label[13] <- "sem"
+
+```
+
+## check stats for each individual subject
+
+```{r individual subject stats in different ROIs}
+
+manual_p_adjust_coefficient <-  nsubjects
+rois_name_ind_stats <- c("wholeBrain","STG",  "STS", "LTCunique","Broca" ) 
+nrois_stats <- length(rois_name_ind_stats)
+
+for (irois in 1:nrois_stats) {
+   print(rois_name_ind_stats[irois])
+  for (sname in subject.names) {
+   
+    data.subject_third <- data_roi_thirdSem[data_roi_thirdSem$subjects==sname & data_roi_thirdSem$rois==rois_name_ind_stats[irois] & data_roi_thirdSem$models=="thirdOrder", ]
+    data.subject_sem <- data_roi_thirdSem[data_roi_thirdSem$subjects==sname & data_roi_thirdSem$rois==rois_name_ind_stats[irois] & data_roi_thirdSem$models=="semantic", ]
+
+    ## paired one way anova test 
+    res <- t.test(data.subject_third$performance, data.subject_sem$performance, paired = TRUE, p.adjust.method = "bonferroni")
+    
+    print(sprintf('      Subject %s region %s: t(%d)= %.2f (p=%.2g, manual adjusted p=%.2g)',  sname, rois_name_ind_stats[irois], res$parameter[[1]], res$statistic, res$p.value,res$p.value * manual_p_adjust_coefficient))
+  }
+  i <- i + 1
+}
+
+```
+
+
+```{r WB table generation, echo=FALSE}
+
+subjectTable_WB <- data.frame(subject=sub_label, 
+                           phonemic=third_mean_all[,1], 
+                           semantic=sem_mean_all[,1],
+                           dprime=dprime_ind_all[,1]
+                           )
+
+subjectTable_WB %>%
+  kbl(caption = "Whole Cerebral Cortex", digits = 3) %>%
+  kable_classic_2(full_width = F, html_font = "Cambria")  %>%
+  # save_kable("/Users/xufamily/Documents/Projects/Diphone/Stats/Fig5/Fig5_sup2_WB_classic2.pdf") 
+  row_spec(c(1,2,3,4,5,6,7,9, 10, 11), bold = T, color = "white", background = "#D7261E")%>%
+  save_kable("./Fig5_sup2_WB_classic2.png")
+
+```
+
+```{r BA table generation, echo=FALSE}
+
+subjectTable_BA <- data.frame(subject=sub_label, 
+                           phonemic=third_mean_all[,6], 
+                           semantic=sem_mean_all[,6],
+                           dprime=dprime_ind_all[,6]
+                           )
+
+subjectTable_BA %>%
+  kbl(caption = "Broca Area", digits = 3) %>%
+  kable_classic_2(full_width = F, html_font = "Cambria")  %>%
+  # kable_styling()%>%
+  # save_kable("/Users/xufamily/Documents/Projects/Diphone/Stats/Fig5/Fig5_sup2_WB_classic2.pdf") 
+  row_spec(c(1,4,9), bold = T, color = "white", background = "#FEF001")%>% #*
+  row_spec(c(11), bold = T, color = "white", background = "#D7261E")%>%
+  save_kable("./Fig5_sup2_BA_classic2.png")
+
+```
+
+
+```{r Temporal Cortex table generation, echo=FALSE}
+
+subjectTable_TC <- data.frame(subject=sub_label, 
+                           phonemic=third_mean_all[,2],
+                           semantic=sem_mean_all[,2],
+                           dprime=dprime_ind_all[,2], 
+                           phonemic=third_mean_all[,3],
+                           semantic=sem_mean_all[,3],
+                           dprime=dprime_ind_all[,3], 
+                           phonemic=third_mean_all[,4],
+                           semantic=sem_mean_all[,4],
+                           dprime=dprime_ind_all[,4], 
+                           phonemic=third_mean_all[,5],
+                           semantic=sem_mean_all[,5],
+                           dprime=dprime_ind_all[,5]
+                           )
+
+
+## Nothing significant in ACunique
+
+## STG
+STG_idx <- c(7, 11)
+STG_color <- c("#D7261E", "#D7261E")
+STG_headers <- c("phonemic.1", "semantic.1", "dprime.1")
+for (i in 1:length(STG_idx)) {
+  for (h in STG_headers){
+    subjectTable_TC[h][[1]][STG_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable_TC[h][[1]][STG_idx[i]]), fmt = '%#.3f'),  color = "white", background=STG_color[i], escape = F)
+  }
+}
+
+STG_tmp_idx <- c(1, 2, 3, 4, 5, 6, 8, 9,10, 12, 13)
+for (i in 1:length(STG_tmp_idx)) {
+  for (h in STG_headers){
+    subjectTable_TC[h][[1]][STG_tmp_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable_TC[h][[1]][STG_tmp_idx[i]]), fmt = '%#.3f'),  color = "black", escape = F)
+  }
+}
+
+
+## STS
+STS_idx <- c(7,9,11)
+STS_color <- c("#D7261E", "#D7261E", "#D7261E")
+STS_headers <- c("phonemic.2", "semantic.2", "dprime.2")
+for (i in 1:length(STS_idx)) {
+  for (h in STS_headers){
+    subjectTable_TC[h][[1]][STS_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable_TC[h][[1]][STS_idx[i]]), fmt = '%#.3f'),  color = "white", background=STS_color[i], escape = F)
+  }
+}
+
+STS_tmp_idx <- c(1,2,3,4,5,6,8,10, 12, 13)
+for (i in 1:length(STS_tmp_idx)) {
+  for (h in STS_headers){
+    subjectTable_TC[h][[1]][STS_tmp_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable_TC[h][[1]][STS_tmp_idx[i]]), fmt = '%#.3f'),  color = "black", escape = F)
+  }
+}
+
+## LTC
+LTC_idx <- c(2,3,4,5, 6, 7,8,9,10,11)
+LTC_color <- c("#FEF001", "#D7261E", "#D7261E", "#D7261E", "#D7261E","#FD6104","#FEF001" ,"#FEF001", "#FD6104", "#D7261E")
+LTC_headers <- c("phonemic.3", "semantic.3", "dprime.3")
+for (i in 1:length(LTC_idx)) {
+  for (h in LTC_headers){
+    subjectTable_TC[h][[1]][LTC_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable_TC[h][[1]][LTC_idx[i]]), fmt = '%#.3f'),  color = "white", background=LTC_color[i], escape = F)
+  }
+}
+
+LTC_tmp_idx <- c(1, 12, 13)
+for (i in 1:length(LTC_tmp_idx)) {
+  for (h in LTC_headers){
+    subjectTable_TC[h][[1]][LTC_tmp_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable_TC[h][[1]][LTC_tmp_idx[i]]), fmt = '%#.3f'),  color = "black", escape = F)
+  }
+}
+
+## AC has some formatting issue
+
+for (i in 1:13) {
+    subjectTable_TC["dprime"][[1]][i] <- cell_spec(sprintf(as.numeric(subjectTable_TC["dprime"][[1]][i]), fmt = '%#.3f'),  color = "black", escape = F)
+  }
+
+subjectTable_TC %>%
+  kbl(caption = "Temporal Cortex", digits = 3, 
+      col.names = c("subject", "phonemic","semantic","dprime",
+                    "phonemic","semantic","dprime",
+                    "phonemic","semantic","dprime",
+                    "phonemic","semantic","dprime"),
+      escape=F) %>%
+  kable_classic_2(full_width = F, html_font = "Cambria")  %>%
+  # kable_styling()%>%
+  add_header_above(c(" " = 1, "PAC" = 3, "STG" = 3, 
+                     "STS" = 3, "LTC" = 3)) %>%
+  # save_kable("/Users/xufamily/Documents/Projects/Diphone/Stats/Fig3/Fig3_sup2_TC_classic2.pdf") kable_styling()%>%
+  save_kable("./Fig5_sup2_TC_classic2.png")
+
+    
+```

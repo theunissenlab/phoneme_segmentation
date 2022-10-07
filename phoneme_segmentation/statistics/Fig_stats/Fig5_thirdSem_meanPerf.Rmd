@@ -1,0 +1,167 @@
+---
+title: "Fig5_thirdSem_meanPerf"
+author: "Frederic Theunissen & Lily Xue Gong"
+date: "5/28/2022"
+output:
+  pdf_document: default
+html_document: default
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Loading up the depencies
+
+```{r libraries}
+library(knitr)
+library(nnet)   # for multinom()
+library(rstatix) # for multinom_test()
+
+library(dplyr)  # for filter()
+
+library(ggplot2) # for the boxplot()
+library(ggpubr)
+
+library(PairedData) # for paired ttest
+library(lme4) # for lmer
+
+library(GMCM)
+#library(kableExtra)
+```
+
+
+## Setting up the data frames 
+Here we load the data and generate 3 new data frames to separate wholeBrain, Broca and Temporal Cortex.
+Note that we set the diphone as the base level.
+
+
+```{r dataload thirdOrder vs semantic, echo=FALSE}
+
+# Read the data for thirdOrder vs semantic
+data_roi_thirdSem <- read.csv("../stats_data/df_perfIndVoxthirdSem.csv")
+
+# Clean up
+data_roi_thirdSem <- na.omit(data_roi_thirdSem)
+data_roi_thirdSem <- subset(data_roi_thirdSem, select = -c(X))
+
+
+# Split into 3 different data frames
+dataLC <- filter(data_roi_thirdSem, rois != "wholeBrain" & rois != "Broca" )
+attach(dataLC)
+rois <-factor(rois)
+levels(rois) <- c("ACunique", "STG", "STS", "LTCunique")
+models <-factor(models)
+levels(models) <- c("thirdOrder", "semantic", ordered=TRUE)
+detach(dataLC)
+
+```
+
+## Stats per ROI
+
+```{r stats per ROI for thirdOrder vs semantic, echo=FALSE}
+
+roi_names <- unique(data_roi_thirdSem$rois)
+
+manual_p_adjust_coefficient <-  length(roi_names)
+
+for (r in roi_names){
+  print(r)
+  data_sub <- filter(data_roi_thirdSem, rois == r)
+  
+  data_sub <- subset(data_sub, select = -c(rois))
+  attach(data_sub)
+  models <-factor(models)
+  levels(models) <- c("thirdOrder", "semantic", ordered=TRUE)
+  detach(data_sub)
+  
+  bxp <-
+    ggboxplot(
+      data_sub, x = "models", y = "performance",
+       color_order = c("thirdOrder", "semantic"),
+      palette = "jco")
+  bxp
+  
+  ## compute stats single vs diphone vs triphone
+  model_phns_sub_features <- lmer (performance ~ models + (1 | subjects), data_sub)
+  model_phns_sub_null <- lmer (performance ~ 1 + (1 | subjects), data_sub)
+  
+  a_phns_features_sub<-anova(model_phns_sub_features, model_phns_sub_null, p.adj = "bonf")
+  
+  ## posthoc tukey test
+  res_aov <- aov(performance ~ models, data_sub)
+  posthoc_res <- TukeyHSD(res_aov, p.adj = "bonf")
+  
+  print(sprintf('Likelihood Ratio Test for features only for %s for single, diphone, triphone: ChiSq(%d) = %.2f p=%.2g', r, a_phns_features_sub$Df[2], a_phns_features_sub$Chisq[2], a_phns_features_sub$Pr[2]))
+  
+  print(sprintf('Posthoc tukey test for %s for third_sem_diff=  %.5f p=%.2g, manual adjusted p=%.2g', r, posthoc_res$models[1,1], posthoc_res$models[1,4],posthoc_res$models[1,4]* manual_p_adjust_coefficient))
+  }
+
+```
+
+
+## Temporal Cortex ROI interactions
+
+
+```{r Temporal Cortex, echo=FALSE}
+
+bxp <-
+  ggboxplot(
+    dataLC, x = "rois", y = "performance",
+    color = "models", color_order = c("thirdOrder", "semantic"),
+    palette = "jco")
+bxp
+
+
+## compute stats thirdOrder vs semantic
+model_thirdSem_full <- lmer (performance ~ rois*models + (1 | subjects), dataLC)
+model_thirdSem_roi <- lmer (performance ~ rois + (1 | subjects), dataLC)
+model_thirdSem_feature <- lmer (performance ~ models + (1 | subjects), dataLC)
+model_thirdSem_nointer <- lmer (performance ~ models + rois + (1 | subjects), dataLC)
+
+a_thirdSem_features<-anova(model_thirdSem_full, model_thirdSem_roi, p.adj = "bonf")
+a_thirdSem_roi <-anova(model_thirdSem_full, model_thirdSem_feature, p.adj = "bonf")
+a_thirdSem_interaction <- anova(model_thirdSem_full, model_thirdSem_nointer, p.adj = "bonf")
+
+print(sprintf('Likelihood Ratio Test for features only: ChiSq(%d) = %.2f p=%.2g', a_thirdSem_features$Df[2], a_thirdSem_features$Chisq[2], a_thirdSem_features$Pr[2]))
+print(sprintf('Likelihood Ratio Test for rois only: ChiSq(%d) = %.2f p=%.2g', a_thirdSem_roi$Df[2], a_thirdSem_roi$Chisq[2], a_thirdSem_roi$Pr[2]))
+print(sprintf('Likelihood Ratio Test for interaction: ChiSq(%d) = %.2f p=%.2g', a_thirdSem_interaction$Df[2], a_thirdSem_interaction$Chisq[2], a_thirdSem_interaction$Pr[2]))
+
+
+```
+## Dprime
+
+```{r dprime calc: thirdOrder vs semantic, echo=FALSE}
+
+
+rois_name <- unique(data_roi_thirdSem$rois)
+nrois <- length(rois_name)
+
+dprime_sum <- array(0, dim=c(nrois, 1))
+dprime_sem <- array(0, dim=c(nrois, 1))
+
+for (irois in 1:nrois) {
+  
+  data_sub <- filter(data_roi_thirdSem, rois == rois_name[irois])
+  data_sub <- subset(data_sub, select = -c(rois))
+  attach(data_sub)
+  models <-factor(models)
+  levels(models) <- c("thirdOrder", "semantic", ordered=TRUE)
+  detach(data_sub)
+  
+  model_thirdSem_features <- lmer (performance ~ models + (1 | subjects), data_sub)
+  model_thirdSem_features_summary <- summary(model_thirdSem_features)
+  
+  pred_std <- as.data.frame(model_thirdSem_features_summary$varcor)$sdcor[1]
+  pred_diff <- as.data.frame(model_thirdSem_features_summary$coefficients)$Estimate[2]
+  pred_se <- as.data.frame(model_thirdSem_features_summary$coefficients)$Std[2]
+  
+  dprime_sum[irois] <- pred_diff/pred_std
+  dprime_sem[irois] <- pred_se/pred_std
+
+  print(sprintf('Cohen dprime for thirdOrder vs semantic  for %s:  %.3f +- %.3f', rois_name[irois],  -dprime_sum[irois], 2*dprime_sem[irois]))
+
+}
+
+
+```

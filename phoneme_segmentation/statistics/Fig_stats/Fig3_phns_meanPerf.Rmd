@@ -1,0 +1,164 @@
+---
+title: "Fig3_phns_meanPerf"
+author: "Frederic Theunissen & Lily Xue Gong"
+date: "5/24/2022"
+output:
+  pdf_document: default
+html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Loading up the depencies
+
+```{r libraries}
+library(knitr)
+library(nnet)   # for multinom()
+library(rstatix) # for multinom_test()
+
+library(dplyr)  # for filter()
+
+library(ggplot2) # for the boxplot()
+library(ggpubr)
+
+library(PairedData) # for paired ttest
+library(lme4) # for lmer
+
+library(GMCM)
+library(kableExtra)
+#library(kableExtra)
+```
+
+
+
+```{r dataload phonemes, echo=FALSE}
+
+# Read the data for single, diphone vs triphone
+data_roi_phns<- read.csv("../stats_data/df_perfIndVoxPhns.csv")
+
+# Clean up
+data_roi_phns <- na.omit(data_roi_phns)
+data_roi_phns <- subset(data_roi_phns, select = -c(X))
+
+
+```
+## Stats per ROI
+
+```{r stats per ROI for phns, echo=FALSE}
+
+roi_names <- unique(data_roi_phns$rois)
+
+manual_p_adjust_coefficient <-  length(roi_names)
+
+for (r in roi_names){
+  print(r)
+  data_sub <- filter(data_roi_phns, rois == r & models != "semantic")
+  
+  data_sub <- subset(data_sub, select = -c(rois))
+  attach(data_sub)
+  models <-factor(models)
+  levels(models) <- c("single","diphone", "triphone", ordered=TRUE)
+  detach(data_sub)
+  
+  bxp <-
+    ggboxplot(
+      data_sub, x = "models", y = "performance",
+       color_order = c("single", "diphone", "triphone"),
+      palette = "jco")
+  bxp
+  
+  ## compute stats single vs diphone vs triphone
+  model_phns_sub_features <- lmer (performance ~ models + (1 | subjects), data_sub)
+  model_phns_sub_null <- lmer (performance ~ 1 + (1 | subjects), data_sub)
+  
+  a_phns_features_sub<-anova(model_phns_sub_features, model_phns_sub_null, p.adj = "bonf")
+  
+  ## posthoc tukey test
+  res_aov <- aov(performance ~ models, data_sub)
+  posthoc_res <- TukeyHSD(res_aov, p.adj = "bonf")
+  
+  print(sprintf('Likelihood Ratio Test for features only for %s for single, diphone, triphone: ChiSq(%d) = %.2f p=%.2g', r, a_phns_features_sub$Df[2], a_phns_features_sub$Chisq[2], a_phns_features_sub$Pr[2]))
+  
+  print(sprintf('Posthoc tukey test for %s for sin_di_diff=  %.5f p=%.2g, manual adjusted p=%.2g; tri_di_diff=  %.5f p=%.2g, manual adjusted p=%.2g; tri_sin_diff=  %.5f p=%.2g, manual adjusted p=%.2g', r, posthoc_res$models[1,1], posthoc_res$models[1,4],posthoc_res$models[1,4]* manual_p_adjust_coefficient, posthoc_res$models[2,1], posthoc_res$models[2,4], posthoc_res$models[2,4]*manual_p_adjust_coefficient,  posthoc_res$models[3,1], posthoc_res$models[3,4], posthoc_res$models[3,4]*manual_p_adjust_coefficient))
+  }
+
+```
+
+## Temporal Cortex ROI interactions
+
+
+```{r phns Temporal Cortex, echo=FALSE}
+dataLC_phns <- filter(data_roi_phns, rois != "wholeBrain" & rois != "Broca" & models != "semantic")
+attach(dataLC_phns)
+rois <-factor(rois)
+levels(rois) <- c("ACunique", "STG", "STS", "LTCunique")
+models <-factor(models)
+levels(models) <- c("single","diphone", "triphone", ordered=TRUE)
+detach(dataLC_phns)
+
+bxp <-
+  ggboxplot(
+    dataLC_phns, x = "rois", y = "performance",
+    color = "models", color_order = c("single", "diphone", "triphone"),
+    palette = "jco")
+bxp
+
+
+## compute stats thirdOrder vs semantic
+model_phn_full <- lmer (performance ~ rois*models + (1 | subjects), dataLC_phns)
+model_phn_roi <- lmer (performance ~ rois + (1 | subjects), dataLC_phns)
+model_phn_feature <- lmer (performance ~ models + (1 | subjects), dataLC_phns)
+model_phn_nointer <- lmer (performance ~ models + rois + (1 | subjects), dataLC_phns)
+
+a_features<-anova(model_phn_full, model_phn_roi, p.adj = "bonf")
+a_roi <-anova(model_phn_full, model_phn_feature, p.adj = "bonf")
+a_interaction <- anova(model_phn_full, model_phn_nointer, p.adj = "bonf")
+
+sprintf(' for temporal cortex mean performance for single, diphone, and triphone, lmer features only %f, pvalue %f', a_features$Chisq[2], a_features$`Pr(>Chisq)`[2])
+sprintf(' for temporal cortex mean performance for single, diphone, and triphone, lmer rois only %f, pvalue %f', a_roi$Chisq[2], a_roi$`Pr(>Chisq)`[2])
+sprintf(' for temporal cortex mean performance for single, diphone, and triphone, lmer features and rois interaction %f, pvalue %f', a_interaction$Chisq[2], a_interaction$`Pr(>Chisq)`[2])
+
+
+```
+
+## Dprime
+
+```{r dprime calc: single vs diphone vs  triphone, echo=FALSE}
+
+
+rois_name_phns <- unique(data_roi_phns$rois)
+nrois_phns <- length(rois_name_phns)
+
+dprime_sum_phns <- array(0, dim=c(nrois_phns, 1))
+dprime_sem_phns <- array(0, dim=c(nrois_phns, 1))
+
+for (irois_phns in 1:nrois_phns) {
+  
+  data_sub_phns <- filter(data_roi_phns, rois == rois_name_phns[irois_phns])
+  data_sub_phns <- subset(data_sub_phns, select = -c(rois))
+  attach(data_sub_phns)
+  models <-factor(models)
+  levels(data_sub_phns) <- c("single", "diphone", "triphone", ordered=TRUE)
+  detach(data_sub_phns)
+  
+  model_phns_features <- lmer (performance ~ models + (1 | subjects), data_sub_phns)
+
+  model_phns_features_summary <- summary(model_phns_features)
+  
+  pred_std <- as.data.frame(model_phns_features_summary$varcor)$sdcor[1]
+  pred_diff_sinDi <- as.data.frame(model_phns_features_summary$coefficients)$Estimate[2]
+  pred_diff_sinTri <- as.data.frame(model_phns_features_summary$coefficients)$Estimate[3]
+  pred_se_sinDi <- as.data.frame(model_phns_features_summary$coefficients)$Std[2]
+  pred_se_sinTri <- as.data.frame(model_phns_features_summary$coefficients)$Std[3]
+  
+  
+  dprime_sum_phns[irois_phns] <- (pred_diff_sinDi/pred_std + pred_diff_sinTri/pred_std)/2
+  dprime_sem_phns[irois_phns] <- sqrt((pred_se_sinDi/pred_std)^2 + (pred_se_sinTri/pred_std)^2)/2
+
+  print(sprintf('Cohen dprime for single vs diphone vs triphone  for %s:  %.3f +- %.3f ', rois_name_phns[irois_phns],  -dprime_sum_phns[irois_phns], 2*dprime_sem_phns[irois_phns]))
+  
+
+}
+

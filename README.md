@@ -7,5 +7,4 @@ This code provides the following analysis:
 2. [Voxelwise encoding modeling](phoneme_segmentation/modeling/modeling_wrapper.py)
 3. [Statistical analysis](phoneme_segmentation/statistics/Fig_stats)
 4. [Simulation](phoneme_segmentation/simulation/simulation_wrapper.py)
-5. [Visualization](phoneme_segmentation/viz/)
-~                                                         
+5. [Visualization](phoneme_segmentation/viz/) 

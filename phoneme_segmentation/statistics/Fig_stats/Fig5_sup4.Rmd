@@ -1,0 +1,662 @@
+---
+title: "Fig5_sup4"
+author: "Frederic Theunissen & Lily Xue Gong"
+date: "5/27/2022"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## R Loading up the depencies
+
+```{r libraries}
+library(nnet)   # for multinom()
+library(rstatix) # for multinom_test()
+
+library(dplyr)  # for filter()
+
+library(ggplot2) # for the boxplot()
+library(ggpubr)
+
+library(PairedData) # for paired ttest
+library(lme4) # for lmer
+library(knitr) # for making tables
+library(emmeans)
+
+library(GMCM)
+
+library(kableExtra)
+
+```
+
+## Setting up the data frames 
+Here we load the data and generate 3 new data frames to separate wholeBrain, Broca and Temporal Cortex.
+Note that we set the diphone as the base level.
+
+
+```{r dataload thirdOrder vs semantic, echo=FALSE}
+
+# Read the data for thirdOrder vs semantic WTA
+data_wta_thirdSem <- read.csv("../stats_data/df_wta_thirdOrder.csv")
+
+# Clean up
+data_wta_thirdSem <- na.omit(data_wta_thirdSem)
+data_wta_thirdSem <- subset(data_wta_thirdSem, select = -c(X))
+
+
+# Split into 3 different data frames
+dataLC_wta <- filter(data_wta_thirdSem, rois != "wholeBrain" & rois != "Broca" )
+attach(dataLC_wta)
+rois <-factor(rois)
+levels(rois) <- c("ACunique", "STG", "STS", "LTCunique")
+models <-factor(models)
+levels(models) <- c("thirdOrder", "semantic", ordered=TRUE)
+detach(dataLC_wta)
+
+
+dataWB_wta <- filter(data_wta_thirdSem, rois == "wholeBrain")
+dataWB_wta <- subset(dataWB_wta, select = -c(rois))
+attach(dataWB_wta)
+models <-factor(models)
+levels(models) <- c("thirdOrder", "semantic", ordered=TRUE)
+detach(dataWB_wta)
+
+
+dataBroca_wta <- filter(data_wta_thirdSem, rois == "Broca")
+dataBroca_wta <- subset(dataBroca_wta, select = -c(rois))
+attach(dataBroca_wta)
+models <-factor(models)
+levels(models) <- c("thirdOrder", "semantic", ordered=TRUE)
+detach(dataBroca_wta)
+
+```
+
+
+
+
+```{r log likelihood, echo=FALSE}
+
+rois_name <- unique(data_wta_thirdSem$rois)
+nrois <- length(rois_name)
+
+log_sum <- array(0, dim=c(nrois, 2))
+
+for (irois in 1:nrois) {
+  
+  data_sub <- filter(data_wta_thirdSem, rois == rois_name[irois])
+  data_sub <- subset(data_sub, select = -c(rois))
+  attach(data_sub)
+  models <-factor(models)
+  levels(data_sub) <- c("thirdOrder", "semantic", ordered=TRUE)
+  detach(data_sub)
+  
+  data_sub_reshape <- reshape(data_sub, direction="wide", 
+                      v.names = c('count','performance'), 
+                      timevar = 'models', idvar = 'subjects')
+  
+  glm_data <- glmer (cbind(data_sub_reshape$count.semantic, data_sub_reshape$count.thirdOrder) ~ 1 + (1 | subjects), data_sub_reshape, family = binomial)
+  glm_data_null <- glmer (cbind(data_sub_reshape$count.semantic, data_sub_reshape$count.thirdOrder) ~ -1 + (1 | subjects), data_sub_reshape, family = binomial)
+
+  glm.dataWBW.res <- anova(glm_data_null, glm_data, test = 'Chisq')
+  
+  print(sprintf("Mixed-effect glmer for %s: Chi(%d)=%.2f, p= %.3g", rois_name[irois], glm.dataWBW.res$Df[2],
+                glm.dataWBW.res$Chisq[2], glm.dataWBW.res$`Pr(>Chisq)`[2]))
+
+  glm_data_summary <- summary(glm_data)
+  
+  log_mean <- as.data.frame(glm_data_summary$coefficients)$Estimate
+  log_sum[irois,1] <- log_mean 
+  log_std <- as.data.frame(emmeans(glm_data, ~ 1))
+  log_sum[irois,2] <- log_std$SE[1]
+  
+  print(sprintf('log for %s:  %.3f +- %.3f ', rois_name[irois],  
+                log_mean, 2*log_std$SE[1]))
+
+}
+
+```
+
+
+```{r log likelihood in TC, echo=FALSE}
+
+dataLCW <- reshape(dataLC_wta, direction="wide", v.names = c('count','performance'), timevar = 'models', idvar = c('subjects', 'rois'))
+
+  
+  glmLC_data <- glmer (cbind(dataLCW$count.semantic, dataLCW$count.thirdOrder) ~ rois + (1 | subjects), dataLCW, family = binomial)
+  glmLC_data_null <- glmer (cbind(dataLCW$count.semantic, dataLCW$count.thirdOrder) ~ 1 + (1 | subjects), dataLCW, family = binomial)
+
+  glm.dataLC.res <- anova(glmLC_data_null, glmLC_data, test = 'Chisq')
+  
+  print(sprintf("Mixed-effect glmer for TC: Chi(%d)=%.2f, p= %.3g",  glm.dataLC.res$Df[2],
+                glm.dataLC.res$Chisq[2], glm.dataLC.res$`Pr(>Chisq)`[2]))
+
+  # Calculate the means
+  glm_dataLC_summary <- summary(glmLC_data)
+  AC_meanLog = as.data.frame(glm_dataLC_summary$coefficients)$Estimate[1]
+  LTC_meanLog = as.data.frame(glm_dataLC_summary$coefficients)$Estimate[1] + as.data.frame(glm_dataLC_summary$coefficients)$Estimate[2]
+  STG_meanLog = as.data.frame(glm_dataLC_summary$coefficients)$Estimate[1] + as.data.frame(glm_dataLC_summary$coefficients)$Estimate[3]
+  STS_meanLog = as.data.frame(glm_dataLC_summary$coefficients)$Estimate[1] + as.data.frame(glm_dataLC_summary$coefficients)$Estimate[4]
+  
+  # Calculate the se
+  counts <- aggregate(count_all ~ rois, data= dataLCW, FUN = sum)
+  count.tot <- sum(counts$count_all)
+  AC_stdLog <- as.data.frame(glm_dataLC_summary$coefficients)$Std[1]
+  sd.tot <- AC_stdLog*sqrt(counts$count_all[1])
+  LTC_stdLog <- sd.tot / sqrt(counts$count_all[2])
+  STG_stdLog <- sd.tot / sqrt(counts$count_all[3])
+  STS_stdLog <- sd.tot / sqrt(counts$count_all[4])
+  
+  # Checking ...
+  print(as.data.frame(glm_dataLC_summary$coefficients)$Std[2])
+  print(sqrt(AC_stdLog^2 +LTC_stdLog^2))
+  # Does not quite match...
+  
+  # Using estimated marginal means
+  meansandSE <- as.data.frame(emmeans(glmLC_data, ~ rois))
+  AC_stdLog <- meansandSE$SE[1]
+  LTC_stdLog <- meansandSE$SE[2]
+  STG_stdLog <- meansandSE$SE[3]
+  STS_stdLog <- meansandSE$SE[4]
+  
+  # Checking ...
+  print(as.data.frame(glm_dataLC_summary$coefficients)$Std[2])
+  print(sqrt(AC_stdLog^2 +LTC_stdLog^2))
+
+  print(sprintf('log for AC:  %.3f +- %.3f ',   
+                AC_meanLog, 2*AC_stdLog))
+  print(sprintf('log for LTC:  %.3f +- %.3f ',   
+                LTC_meanLog, 2*LTC_stdLog))
+  print(sprintf('log for STG:  %.3f +- %.3f ',   
+                STG_meanLog, 2*STG_stdLog))
+  print(sprintf('log for STS:  %.3f +- %.3f ',   
+                STS_meanLog, 2*STS_stdLog))
+
+
+```
+
+## For each ROI 
+
+```{r exact binomial test loop through each roi, echo=FALSE}
+
+rois_name <- unique(data_wta_thirdSem$rois)
+nrois <- length(rois_name)
+nsubjects <- length(unique(data_wta_thirdSem$subjects))
+pvalSubject <- array(dim=c(nsubjects, nrois))
+logoddSubject <- array(dim=c(nsubjects, nrois))
+countPhoneme <- array(dim=c(nsubjects, nrois))
+
+
+for (irois in 1:nrois) {
+  print(rois_name[irois])
+  dataSub <- filter(data_wta_thirdSem, rois == rois_name[irois])
+  dataSub <- subset(dataSub, select = -c(rois))
+  
+  attach(dataSub)
+  models <-factor(models)
+  levels(models) <- c("thirdOrder", "semantic", ordered=TRUE)
+  detach(dataSub)
+  
+  dataSubW <- reshape(dataSub, direction="wide", 
+                   v.names = c('count','performance'), 
+                   timevar = 'models', idvar = 'subjects')
+  
+#  print('   Per subject:')
+  for (i in 1:nsubjects) {
+    pval <- pairwise_binom_test(c(dataSubW$count.thirdOrder[i],  dataSubW$count.semantic[i]), p.adjust.method = "bonferroni")
+    pvalSubject[i, irois] <- as.numeric(pval$p.adj)
+    countPhoneme[i, irois]  <- dataSubW$count.thirdOrder[i] + dataSubW$count.semantic[i] 
+    logoddSubject[i, irois] <- -log(dataSubW$count.thirdOrder[i]/dataSubW$count.semantic[i])
+    print(sprintf('      Subject %s: p=%.2g loggOdds = %.3f ',  dataSubW$subjects[i], pvalSubject[i,irois], logoddSubject[i,irois])) 
+  }
+  
+}
+
+
+#print(sprintf(' Number of subjects with p corrected < 0.05: %d/%d logOdds = %.3f +- %.3f (2SE) ', sum(pvalSubject < (0.05/nsubjects)), nsubjects, mean(logoddSubject), 2*sd(logoddSubject)/sqrt(nsubjects)))
+
+logoddSubject_all <- array(dim=c(nsubjects+2, nrois))
+countPhoneme_all <- array(dim=c(nsubjects+2, nrois))
+
+logoddSubject_all[1:11,] <- logoddSubject
+countPhoneme_all[1:11,] <- countPhoneme
+
+logoddSubject_all[12,] <- colMeans(logoddSubject)
+logoddSubject_all[13,] <- GMCM:::colSds(logoddSubject)/sqrt(nsubjects)
+countPhoneme_all[12,] <- colMeans(countPhoneme)
+countPhoneme_all[13,] <- GMCM:::colSds(countPhoneme)/sqrt(nsubjects)
+
+sub_label <- array(dim=nsubjects+2)
+sub_label[1:11] <- 1:nsubjects
+sub_label[12] <- "average"
+sub_label[13] <- "sem"
+
+
+
+subjectTable <- data.frame(subject=sub_label, 
+                           AC_l_thirdSem=sprintf(logoddSubject_all[,2], fmt = '%#.3f'), AC_count=as.integer(countPhoneme_all[,2]),
+                           STG_l_thirdSem=sprintf(logoddSubject_all[,3], fmt = '%#.3f'), STG_count=as.integer(countPhoneme_all[,3]),
+                           STS_l_thirdSem=sprintf(logoddSubject_all[,4], fmt = '%#.3f'), STS_count=as.integer(countPhoneme_all[,4]),
+                           LTC_l_thirdSem=sprintf(logoddSubject_all[,5], fmt = '%#.3f'), LTC_count=as.integer(countPhoneme_all[,5]),
+                           Broca_l_thirdSem=sprintf(logoddSubject_all[,6], fmt = '%#.3f'), Broca_count=as.integer(countPhoneme_all[,6]),
+                           WB_l_thirdSem=sprintf(logoddSubject_all[,1], fmt = '%#.3f'), WB_count=as.integer(countPhoneme_all[,1])
+                           )
+
+
+
+
+
+
+
+```
+
+```{r stats sig}
+
+
+## Nothing in AC is significant
+
+## STG
+STG_idx <- c(1, 2,3,9)
+STG_color <- c("#D7261E", "#D7261E", "#D7261E", "#D7261E")
+STG_headers <- c("STG_l_thirdSem", "STG_count")
+for (i in 1:length(STG_idx)) {
+  for (h in STG_headers){
+    if (h == "STG_count"){
+      subjectTable[h][[1]][STG_idx[i]] <- cell_spec(as.integer(subjectTable[h][[1]][STG_idx[i]]),  color = "white", background=STG_color[i], escape = F)
+    }
+    else{
+      subjectTable[h][[1]][STG_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable[h][[1]][STG_idx[i]]), fmt = '%#.3f'),  color = "white", background=STG_color[i], escape = F)
+    }
+  }
+}
+
+STG_tmp_idx <- c(4,5,6,7,8,10,11,12,13)
+for (i in 1:length(STG_tmp_idx)) {
+  for (h in STG_headers){
+    if (h == "STG_count"){
+      subjectTable[h][[1]][STG_tmp_idx[i]] <- cell_spec(as.integer(subjectTable[h][[1]][STG_tmp_idx[i]]),  color = "black", escape = F)
+    }
+    else{
+      subjectTable[h][[1]][STG_tmp_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable[h][[1]][STG_tmp_idx[i]]), fmt = '%#.3f'),  color = "black", escape = F)
+    }
+  }
+}
+
+## STS
+STS_idx <- c(1, 2, 3, 5, 6, 7, 8, 9, 11)
+STS_color <- c("#D7261E", "#D7261E", "#FEF001","#D7261E","#D7261E","#D7261E", "#D7261E", "#D7261E","#D7261E")
+STS_headers <- c("STS_l_thirdSem", "STS_count")
+for (i in 1:length(STS_idx)) {
+  for (h in STS_headers){
+    if (h == "STS_count"){
+      subjectTable[h][[1]][STS_idx[i]] <- cell_spec(as.integer(subjectTable[h][[1]][STS_idx[i]]),  color = "white", background=STS_color[i], escape = F)
+    }
+    else{
+      subjectTable[h][[1]][STS_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable[h][[1]][STS_idx[i]]), fmt = '%#.3f'),  color = "white", background=STS_color[i], escape = F)
+    }
+  }
+}
+
+STS_tmp_idx <- c(4, 10, 12, 13)
+for (i in 1:length(STS_tmp_idx)) {
+  for (h in STS_headers){
+    if (h == "STS_count"){
+      subjectTable[h][[1]][STS_tmp_idx[i]] <- cell_spec(as.integer(subjectTable[h][[1]][STS_tmp_idx[i]]),  color = "black", escape = F)
+    }
+    else{
+      subjectTable[h][[1]][STS_tmp_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable[h][[1]][STS_tmp_idx[i]]), fmt = '%#.3f'),  color = "black", escape = F)
+    }
+  }
+}
+
+## LTC
+LTC_idx <- c(1, 3, 4, 5, 6, 7, 8, 9, 10, 11)
+LTC_color <- c("#D7261E", "#D7261E", "#D7261E", "#D7261E","#D7261E","#D7261E", "#FEF001", "#D7261E","#D7261E","#D7261E")
+LTC_headers <- c("LTC_l_thirdSem", "LTC_count")
+for (i in 1:length(LTC_idx)) {
+  for (h in LTC_headers){
+    if (h == "LTC_count"){
+      subjectTable[h][[1]][LTC_idx[i]] <- cell_spec(as.integer(subjectTable[h][[1]][LTC_idx[i]]),  color = "white", background=LTC_color[i], escape = F)
+    }
+    else{
+      subjectTable[h][[1]][LTC_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable[h][[1]][LTC_idx[i]]), fmt = '%#.3f'),  color = "white", background=LTC_color[i], escape = F)
+    }
+  }
+}
+
+LTC_tmp_idx <- c(2, 12, 13)
+for (i in 1:length(LTC_tmp_idx)) {
+  for (h in LTC_headers){
+    if (h == "LTC_count"){
+      subjectTable[h][[1]][LTC_tmp_idx[i]] <- cell_spec(as.integer(subjectTable[h][[1]][LTC_tmp_idx[i]], fmt = '%#.3f'),  color = "black", escape = F)
+    }
+    else{
+      subjectTable[h][[1]][LTC_tmp_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable[h][[1]][LTC_tmp_idx[i]]), fmt = '%#.3f'),  color = "black", escape = F)
+    }
+  }
+}
+
+
+## BA
+BA_idx <- c(3,7,9,11)
+BA_color <- c("#D7261E", "#D7261E","#D7261E","#FEF001")
+BA_headers <- c("Broca_l_thirdSem", "Broca_count")
+for (i in 1:length(BA_idx)) {
+  for (h in BA_headers){
+    if (h == "Broca_count"){
+      subjectTable[h][[1]][BA_idx[i]] <- cell_spec(as.integer(subjectTable[h][[1]][BA_idx[i]]),  color = "white", background=BA_color[i], escape = F)
+    }
+    else{
+      subjectTable[h][[1]][BA_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable[h][[1]][BA_idx[i]]), fmt = '%#.3f'),  color = "white", background=BA_color[i], escape = F)
+    }
+  }
+}
+
+BAtmp_idx <- c(1, 2,4,5,6,7, 10,  12, 13)
+for (i in 1:length(BAtmp_idx)) {
+  for (h in BA_headers){
+    if (h == "Broca_count"){
+      subjectTable[h][[1]][BAtmp_idx[i]] <- cell_spec(as.integer(subjectTable[h][[1]][BAtmp_idx[i]], fmt = '%#.3f'),  color = "black", escape = F)
+    }
+    else{
+      subjectTable[h][[1]][BAtmp_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable[h][[1]][BAtmp_idx[i]]), fmt = '%#.3f'),  color = "black", escape = F)
+    }
+  }
+}
+
+
+## WC all are significant
+WC_color <- c("#D7261E", "#D7261E","#D7261E","#D7261E","#D7261E", "#D7261E","#D7261E","#D7261E","#D7261E","#D7261E","#D7261E")
+WC_headers <- c("WB_l_thirdSem", "WB_count")
+for (i in 1:11) {
+  for (h in WC_headers){
+    if (h == "WB_count"){
+      subjectTable[h][[1]][i] <- cell_spec(as.integer(subjectTable[h][[1]][i]),  color = "white", background=WC_color[i], escape = F)
+    }
+    else{
+      subjectTable[h][[1]][i] <- cell_spec(sprintf(as.numeric(subjectTable[h][[1]][i]), fmt = '%#.3f'),  color = "white", background=WC_color[i], escape = F)
+    }
+  }
+}
+
+
+```
+
+```{r save plots}
+
+subjectTable %>%
+  kbl(
+      caption = "Count Data for Phonemic VS Semantic Comparisons", digits = 3, 
+      col.names = c("subject", "l_phnSem","count",
+                    "l_phnSem","count",
+                    "l_phnSem","count",
+                    "l_phnSem","count",
+                    "l_phnSem","count",
+                    "l_phnSem","count"),
+      escape=F) %>%
+  kable_classic_2(full_width = F, html_font = "Cambria")  %>%
+  add_header_above(c(" " = 1, "PAC" = 2, "STG" = 2, 
+                     "STS" = 2, "LTC" = 2, "BA" = 2, "WC" = 2))%>%
+  save_kable("./Fig5_sup4_classic2.png")
+```
+
+
+
+
+## Broca Area
+
+```{r Broca Area paired exact binomial test, echo=FALSE}
+
+dataBAW <- reshape(dataBroca_wta, direction="wide", 
+                   v.names = c('count','performance'), 
+                   timevar = 'models', idvar = 'subjects')
+
+nsubjects <- nrow(dataBAW)
+pvalSubject <- array(dim=nsubjects)
+logoddSubject <- array(dim=nsubjects)
+countPhoneme <- array(dim=nsubjects)
+
+print('   Per subject:')
+for (i in 1:nsubjects) {
+  pval <- pairwise_binom_test(c(dataBAW$count.thirdOrder[i],  dataBAW$count.semantic[i]), p.adjust.method = "bonferroni")
+  pvalSubject[i] <- as.numeric(pval$p.adj)
+  countPhoneme[i]  <- dataBAW$count.thirdOrder[i] + dataBAW$count.semantic[i] 
+  logoddSubject[i] <- -log(dataBAW$count.thirdOrder[i]/dataBAW$count.semantic[i])
+  print(sprintf('      Subject %s: p=%.2g loggOdds = %.3f ',  dataBAW$subjects[i], pvalSubject[i], logoddSubject[i]))
+}
+
+print(sprintf(' Number of subjects with p corrected < 0.05: %d/%d logOdds = %.3f +- %.3f (2SE) ', sum(pvalSubject < (0.05/nsubjects)), nsubjects, mean(logoddSubject), 2*sd(logoddSubject)/sqrt(nsubjects)))
+
+subjectTable <- data.frame(subject=1:nsubjects, l_thirdSem=logoddSubject, count=countPhoneme)
+kable(subjectTable, caption="Broca's Area", format.args=list(digits = 2))
+
+
+## overall exact test
+pval_overall_BA <- binom_test(cbind(sum(dataBAW$count.thirdOrder), sum(dataBAW$count.semantic)),1/2) 
+
+## overall negLog probability
+logodd_overall_BA <- -log(sum(dataBAW$count.thirdOrder)/sum(dataBAW$count.semantic))
+
+sprintf(' for Broca area thirdOrder vs semantic, overall pval is  %f, overall logodd is %f', pval_overall_BA$p, logodd_overall_BA)
+```
+
+
+
+
+## Temporal Cortex
+
+
+```{r AC wta thirdOrder vs semantic, echo=FALSE}
+
+## AC in TC
+
+dataAC_wta <- filter(data_wta_thirdSem, rois == "ACunique")
+dataAC_wta <- subset(dataAC_wta, select = -c(rois))
+attach(dataAC_wta)
+models <-factor(models)
+levels(models) <- c("thirdOrder", "semantic", ordered=TRUE)
+detach(dataAC_wta)
+
+
+dataACW <- reshape(dataAC_wta, direction="wide", 
+                   v.names = c('count','performance'), 
+                   timevar = 'models', idvar = 'subjects')
+
+nsubjects <- nrow(dataACW)
+pvalSubject <- array(dim=nsubjects)
+logoddSubject <- array(dim=nsubjects)
+countPhoneme <- array(dim=nsubjects)
+
+print('   Per subject:')
+for (i in 1:nsubjects) {
+  pval <- pairwise_binom_test(c(dataACW$count.thirdOrder[i],  dataACW$count.semantic[i]), p.adjust.method = "bonferroni")
+  pvalSubject[i] <- as.numeric(pval$p.adj)
+  logoddSubject[i] <- -log(dataACW$count.thirdOrder[i]/dataACW$count.semantic[i])
+  countPhoneme[i]  <- dataWBW$count.thirdOrder[i] + dataWBW$count.semantic[i] 
+  print(sprintf('      Subject %s: p=%.2g loggOdds = %.3f ',  dataACW$subjects[i], pvalSubject[i], logoddSubject[i]))
+}
+
+print(sprintf(' Number of subjects with p corrected < 0.05: %d/%d logOdds = %.3f +- %.3f (2SE) ', sum(pvalSubject < (0.05/nsubjects)), nsubjects, mean(logoddSubject), 2*sd(logoddSubject)/sqrt(nsubjects)))
+
+subjectTable <- data.frame(subject=1:nsubjects, l_thirdSem=logoddSubject, count=countPhoneme)
+kable(subjectTable, caption="Whole Brain", format.args=list(digits = 2))
+
+
+## overall exact test
+pval_overall_AC <- binom_test(cbind(sum(dataACW$count.thirdOrder), sum(dataACW$count.semantic)),1/2) 
+
+## overall negLog probability
+logodd_overall_AC <- -log(sum(dataACW$count.thirdOrder)/sum(dataACW$count.semantic))
+
+sprintf(' for primary auditory cortex thirdOrder vs semantic, overall pval is  %f, overall logodd is %f', pval_overall_AC$p, logodd_overall_AC)
+```
+
+```{r STG wta thirdOrder vs semantic, echo=FALSE}
+
+
+## STG in TC 
+
+
+dataSTG_wta <- filter(data_wta_thirdSem, rois == "STG")
+dataSTG_wta <- subset(dataSTG_wta, select = -c(rois))
+attach(dataSTG_wta)
+models <-factor(models)
+levels(models) <- c("thirdOrder", "semantic", ordered=TRUE)
+detach(dataSTG_wta)
+
+
+dataSTGW <- reshape(dataSTG_wta, direction="wide", 
+                   v.names = c('count','performance'), 
+                   timevar = 'models', idvar = 'subjects')
+
+nsubjects <- nrow(dataSTGW)
+pvalSubject <- array(dim=nsubjects)
+logoddSubject <- array(dim=nsubjects)
+
+print('   Per subject:')
+for (i in 1:nsubjects) {
+  pval <- pairwise_binom_test(c(dataSTGW$count.thirdOrder[i],  dataSTGW$count.semantic[i]), p.adjust.method = "bonferroni")
+  pvalSubject[i] <- as.numeric(pval$p.adj)
+  logoddSubject[i] <- -log(dataSTGW$count.thirdOrder[i]/dataSTGW$count.semantic[i])
+  print(sprintf('      Subject %s: p=%.2g loggOdds = %.3f ',  dataSTGW$subjects[i], pvalSubject[i], logoddSubject[i]))
+}
+
+print(sprintf(' Number of subjects with p corrected < 0.05: %d/%d logOdds = %.3f +- %.3f (2SE) ', sum(pvalSubject < (0.05/nsubjects)), nsubjects, mean(logoddSubject), 2*sd(logoddSubject)/sqrt(nsubjects)))
+
+subjectTable <- data.frame(subject=1:nsubjects, l_thirdSem=logoddSubject, count=countPhoneme)
+kable(subjectTable, caption="Whole Brain", format.args=list(digits = 2))
+
+
+## overall exact test
+pval_overall_STG <- binom_test(cbind(sum(dataSTGW$count.thirdOrder), sum(dataSTGW$count.semantic)),1/2) 
+
+## overall negLog probability
+logodd_overall_STG <- -log(sum(dataSTGW$count.thirdOrder)/sum(dataSTGW$count.semantic))
+
+sprintf(' for STG thirdOrder vs semantic, overall pval is  %f, overall logodd is %f', pval_overall_STG$p, logodd_overall_STG)
+
+```
+
+```{r STS wta thirdOrder vs semantic, echo=FALSE}
+
+## STS in TC 
+
+dataSTS_wta <- filter(data_wta_thirdSem, rois == "STS")
+dataSTS_wta <- subset(dataSTS_wta, select = -c(rois))
+attach(dataSTS_wta)
+models <-factor(models)
+levels(models) <- c("thirdOrder", "semantic", ordered=TRUE)
+detach(dataSTS_wta)
+
+
+dataSTSW <- reshape(dataSTS_wta, direction="wide", 
+                    v.names = c('count','performance'), 
+                    timevar = 'models', idvar = 'subjects')
+
+nsubjects <- nrow(dataSTSW)
+pvalSubject <- array(dim=nsubjects)
+logoddSubject <- array(dim=nsubjects)
+
+print('   Per subject:')
+for (i in 1:nsubjects) {
+  pval <- pairwise_binom_test(c(dataSTSW$count.thirdOrder[i],  dataSTSW$count.semantic[i]), p.adjust.method = "bonferroni")
+  pvalSubject[i] <- as.numeric(pval$p.adj)
+  logoddSubject[i] <- -log(dataSTSW$count.thirdOrder[i]/dataSTSW$count.semantic[i])
+  print(sprintf('     STS  Subject %s: p=%.2g loggOdds = %.3f ',  dataSTSW$subjects[i], pvalSubject[i], logoddSubject[i]))
+}
+
+print(sprintf(' Number of subjects with p corrected < 0.05: %d/%d logOdds = %.3f +- %.3f (2SE) ', sum(pvalSubject < (0.05/nsubjects)), nsubjects, mean(logoddSubject), 2*sd(logoddSubject)/sqrt(nsubjects)))
+
+
+## overall exact test
+pval_overall_STS <- binom_test(cbind(sum(dataSTSW$count.thirdOrder), sum(dataSTSW$count.semantic)),1/2) 
+
+## overall negLog probability
+logodd_overall_STS <- -log(sum(dataSTSW$count.thirdOrder)/sum(dataSTSW$count.semantic))
+
+sprintf(' for STS thirdOrder vs semantic, overall pval is  %f, overall logodd is %f', pval_overall_STS$p, logodd_overall_STS)
+
+```
+
+```{r LTC wta thirdOrder vs semantic, echo=FALSE}
+
+## LTCunique in TC 
+
+dataLTCunique_wta <- filter(data_wta_thirdSem, rois == "LTCunique")
+dataLTCunique_wta <- subset(dataLTCunique_wta, select = -c(rois))
+attach(dataLTCunique_wta)
+models <-factor(models)
+levels(models) <- c("thirdOrder", "semantic", ordered=TRUE)
+detach(dataLTCunique_wta)
+
+
+dataLTCuniqueW <- reshape(dataLTCunique_wta, direction="wide", 
+                    v.names = c('count','performance'), 
+                    timevar = 'models', idvar = 'subjects')
+
+nsubjects <- nrow(dataLTCuniqueW)
+pvalSubject <- array(dim=nsubjects)
+logoddSubject <- array(dim=nsubjects)
+
+print('   Per subject:')
+for (i in 1:nsubjects) {
+  pval <- pairwise_binom_test(c(dataLTCuniqueW$count.thirdOrder[i],  dataLTCuniqueW$count.semantic[i]), p.adjust.method = "bonferroni")
+  pvalSubject[i] <- as.numeric(pval$p.adj)
+  logoddSubject[i] <- -log(dataLTCuniqueW$count.thirdOrder[i]/dataLTCuniqueW$count.semantic[i])
+  print(sprintf('      Subject %s: p=%.2g loggOdds = %.3f ',  dataLTCuniqueW$subjects[i], pvalSubject[i], logoddSubject[i]))
+}
+
+print(sprintf(' Number of subjects with p corrected < 0.05: %d/%d logOdds = %.3f +- %.3f (2SE) ', sum(pvalSubject < (0.05/nsubjects)), nsubjects, mean(logoddSubject), 2*sd(logoddSubject)/sqrt(nsubjects)))
+
+
+## overall exact test
+pval_overall_LTCunique <- binom_test(cbind(sum(dataLTCuniqueW$count.thirdOrder), sum(dataLTCuniqueW$count.semantic)),1/2) 
+
+## overall negLog probability
+logodd_overall_LTCunique <- -log(sum(dataLTCuniqueW$count.thirdOrder)/sum(dataLTCuniqueW$count.semantic))
+
+sprintf(' for LTC thirdOrder vs semantic, overall pval is  %f, overall logodd is %f', pval_overall_LTCunique$p, logodd_overall_LTCunique)
+```
+
+```{r TC interaction wta thirdOrder vs semantic, echo=FALSE}
+
+
+## TC sum: including all four areas/partitions:
+## ACunique, STG, STS, LTCunique
+
+dataLCW <- reshape(dataLC_wta, direction="wide", v.names = c('count','performance'), timevar = 'models', idvar = c('subjects', 'rois'))
+
+dataLCW.agg <- aggregate(cbind(count.thirdOrder, count.semantic) ~ subjects, data= dataLCW, sum)
+
+nsubjects <- nrow(dataLCW.agg)
+pvalSubject <- array(dim=nsubjects)
+logoddSubject <- array(dim=nsubjects)
+
+
+print('   Per subject:')
+for (i in 1:nsubjects) {
+  pval <- pairwise_binom_test(c(dataLCW.agg$count.thirdOrder[i],  dataLCW.agg$count.semantic[i]), p.adjust.method = "bonferroni")
+  pvalSubject[i] <- as.numeric(pval$p.adj)
+  logoddSubject[i] <- -log(dataLCW.agg$count.thirdOrder[i]/dataLCW.agg$count.semantic[i])
+  print(sprintf('      Subject %s: p=%.2g loggOdds = %.3f ',  dataLCW.agg$subjects[i], pvalSubject[i], logoddSubject[i]))
+}
+
+
+## Interaction for LTC
+
+# The interaction effect should be modeled with multinomial logistic regression so that each subject is weighted appropriately. Note that the diphone is used as the base line.
+
+
+model_roi <- glm(cbind(count.thirdOrder, count.semantic) ~ rois, data = dataLCW, family="binomial")
+model_null <- glm(cbind(count.thirdOrder, count.semantic) ~ 1, data = dataLCW, family="binomial")
+
+
+roi.res <- anova(model_null, model_roi, test = 'Chisq')
+print('Comparing multinomial model with roi with null model')
+print(sprintf('Likelihood Ratio Test: ChiSq(%d) = %.2f p=%.2g', roi.res$Df[2], roi.res$Deviance[2], roi.res$Pr[2]))
+
+```

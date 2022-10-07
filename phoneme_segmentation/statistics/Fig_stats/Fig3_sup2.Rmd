@@ -1,0 +1,287 @@
+---
+title: "Fig3_sup2"
+author: "Frederic Theunissen & Lily Xue Gong"
+date: "5/24/2022"
+output:
+  pdf_document: default
+html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Loading up the depencies
+
+```{r libraries}
+library(knitr)
+library(dplyr)  # for filter()
+
+library(kableExtra) # for plot tables
+
+```
+
+```{r dataload phonemes, echo=FALSE}
+
+# Read the data for single, diphone vs triphone
+data_roi_phns<- read.csv("../stats_data/df_perfIndVoxPhns.csv")
+
+# Clean up
+data_roi_phns <- na.omit(data_roi_phns)
+data_roi_phns <- subset(data_roi_phns, select = -c(X))
+
+
+# Split into 3 different data frames
+dataLC_phns <- filter(data_roi_phns, rois != "wholeBrain" & rois != "Broca" & models != "semantic")
+attach(dataLC_phns)
+rois <-factor(rois)
+levels(rois) <- c("ACunique", "STG", "STS", "LTCunique")
+models <-factor(models)
+levels(models) <- c("single","diphone", "triphone", ordered=TRUE)
+detach(dataLC_phns)
+
+dataWB_phns <- filter(data_roi_phns, rois == "wholeBrain" & models != "semantic")
+dataWB_phns <- subset(dataWB_phns, select = -c(rois))
+attach(dataWB_phns)
+models <-factor(models)
+levels(models) <- c("single","diphone", "triphone", ordered=TRUE)
+detach(dataWB_phns)
+
+
+dataBroca_phns <- filter(data_roi_phns, rois == "Broca" & models != "semantic")
+dataBroca_phns <- subset(dataBroca_phns, select = -c(rois))
+attach(dataBroca_phns)
+models <-factor(models)
+levels(models) <- c("single","diphone", "triphone", ordered=TRUE)
+detach(dataBroca_phns)
+```
+## dprime
+
+```{r Individual summary table preparation, echo=FALSE}
+subject.names <- unique(data_roi_phns$subjects)
+rois_name <- unique(data_roi_phns$rois)
+nrois <- length(rois_name)
+nsubjects <- length(subject.names)
+sin_mean <- array(dim=c(nsubjects, nrois))
+di_mean <- array(dim=c(nsubjects, nrois))
+tri_mean <- array(dim=c(nsubjects, nrois))
+dprime_ind_phns <- array(dim=c(nsubjects, nrois))
+
+i <- 1
+for (sname in subject.names) {
+  for (irois in 1:nrois) {
+    data.subject <- data_roi_phns[data_roi_phns$subjects==sname & data_roi_phns$rois==rois_name[irois], ]
+    sin_mean[i,irois] <- mean(data.subject[data.subject$models == "single",]$performance)
+    di_mean[i,irois] <- mean(data.subject[data.subject$models == "diphone",]$performance)
+    tri_mean[i,irois] <- mean(data.subject[data.subject$models == "triphone",]$performance)
+    std_diSin <- sd(data.subject[data.subject$models == "diphone",]$performance - data.subject[data.subject$models == "single",]$performance)
+    std_diTri <- sd(data.subject[data.subject$models == "diphone",]$performance - data.subject[data.subject$models == "triphone",]$performance)
+    diprime_diSin <- (di_mean[i,irois] - sin_mean[i,irois])/std_diSin
+    diprime_diTri <- (di_mean[i,irois] - tri_mean[i,irois])/std_diTri
+    dprime_ind_phns[i,irois] <- (diprime_diSin + diprime_diTri)/2
+  }
+  i <- i + 1
+}
+
+
+sin_mean_all <- array(dim=c(nsubjects+2, nrois))
+di_mean_all <- array(dim=c(nsubjects+2, nrois))
+tri_mean_all <- array(dim=c(nsubjects+2, nrois))
+dprime_ind_phns_all <- array(dim=c(nsubjects+2, nrois))
+
+sin_mean_all[1:11,] <- sin_mean
+di_mean_all[1:11,] <- di_mean
+tri_mean_all[1:11,] <- tri_mean
+dprime_ind_phns_all[1:11,] <- dprime_ind_phns
+
+sin_mean_all[12,] <- colMeans(sin_mean)
+sin_mean_all[13,] <- GMCM:::colSds(sin_mean)/sqrt(nsubjects)
+di_mean_all[12,] <- colMeans(di_mean)
+di_mean_all[13,] <- GMCM:::colSds(di_mean)/sqrt(nsubjects)
+tri_mean_all[12,] <- colMeans(tri_mean)
+tri_mean_all[13,] <- GMCM:::colSds(tri_mean)/sqrt(nsubjects)
+dprime_ind_phns_all[12,] <- colMeans(dprime_ind_phns)
+dprime_ind_phns_all[13,] <- GMCM:::colSds(dprime_ind_phns)/sqrt(nsubjects)
+
+sub_label <- array(dim=nsubjects+2)
+sub_label[1:11] <- 1:nsubjects
+sub_label[12] <- "average"
+sub_label[13] <- "sem"
+
+```
+
+## check stats for each individual subject
+
+```{r posthoc test for each ROI}
+
+manual_p_adjust_coefficient <-  nsubjects
+
+for (irois in 1:nrois) {
+   print(rois_name[irois])
+  for (sname in subject.names) {
+   
+    data.subject <- data_roi_phns[data_roi_phns$subjects==sname & data_roi_phns$rois==rois_name[irois], ]
+    # ## lmer test
+    # data_subj_phns_m <- lmer (performance ~ models + (1 | subjects), data.subject)
+    # data_subj_phns_null <- lmer (performance ~ 1 + (1 | subjects), data.subject)
+    # 
+    # a_phns<-anova(data_subj_phns_null, data_subj_phns_m, p.adj = "bonf")
+    # 
+    # print(sprintf('Subject %s Likelihood Ratio Test for WB : ChiSq(%d) = %.2f p=%.2g', subject.names,  a_phns$Df[2], a_phns$Chisq[2], a_phns$Pr[2]))
+    
+    ## paired one way anova test 
+    res.aov <- aov(performance ~ models, data = data.subject, p.adjust.methods = "bonferroni")
+    gofit.res <- summary(res.aov)
+    tukey.res <- TukeyHSD(res.aov, p.adjust.method = "bonferroni")
+    
+    pvalSubject <- gofit.res[[1]]["Pr(>F)"][[1]][[1]]
+    sin_di_diff <- data.frame(tukey.res$models)["diff"][[1]][1]
+    sin_di_p <- data.frame(tukey.res$models)["p.adj"][[1]][1]
+    tri_di_diff <- data.frame(tukey.res$models)["diff"][[1]][2]
+    tri_di_p <- data.frame(tukey.res$models)["p.adj"][[1]][2]
+    tri_sin_diff <- data.frame(tukey.res$models)["diff"][[1]][3]
+    tri_sin_p <- data.frame(tukey.res$models)["p.adj"][[1]][2]
+  
+    df <- gofit.res[[1]]["Df"][[1]][[1]]
+    stats <- gofit.res[[1]]["F value"][[1]][[1]]
+    print(sprintf('      Subject %s region %s: F(%d)= %.2f (p=%.2g, manual adjusted p=%.2g): sin_di_diff diff =  %.3f (p.adj = %.2g, manual adjusted p=%.2g),  tri_di_diff = %.3f (p.adj = %.2g, manual adjusted p=%.2g), tri_sin_diff= %.3f (p.adj = %.2g, manual adjusted p=%.2g)',  sname, rois_name[irois], df, stats, pvalSubject, pvalSubject*manual_p_adjust_coefficient, sin_di_diff, sin_di_p, sin_di_p*manual_p_adjust_coefficient, tri_di_diff, tri_di_p, tri_di_p*manual_p_adjust_coefficient, tri_sin_diff, tri_sin_p, tri_sin_p*manual_p_adjust_coefficient))
+  }
+  i <- i + 1
+}
+
+```
+
+
+
+```{r WB table generation, echo=FALSE}
+subjectTable_phns_WB <- data.frame(subject=sub_label, 
+                           single=sin_mean_all[,1], 
+                           diphone=di_mean_all[,1],
+                           triphone=tri_mean_all[,1], 
+                           dprime=dprime_ind_phns_all[,1]
+                           )
+
+subjectTable_phns_WB %>%
+  kbl(caption = "Whole Cerebral Cortex", digits = 3) %>%
+  kable_classic_2(full_width = F, html_font = "Cambria")  %>%
+  row_spec(c(1,2,4,5,6,7,8,9,10,11), bold = T, color = "white", background = "#D7261E")%>%
+  save_kable("./Fig3_sup2_WB_classic2.png")
+    
+```
+```{r BA table generation, echo=FALSE}
+
+subjectTable_phns_BA <- data.frame(subject=sub_label,
+                           single=sin_mean_all[,6],
+                           diphone=di_mean_all[,6],
+                           triphone=tri_mean_all[,6],
+                           dprime=dprime_ind_phns_all[,6]
+                           )
+
+subjectTable_phns_BA %>%
+  kbl(caption = "Broca Area", digits = 3) %>%
+  kable_classic_2(full_width = F, html_font = "Cambria")  %>%
+  ## here without manual adjustement
+  row_spec(c(4,6,9, 10), bold = T, color = "white", background = "#FEF001")%>% #*
+  row_spec(c(1,5), bold = T, color = "white", background = "#FD6104")%>% #**
+  row_spec(c(7), bold = T, color = "white", background = "#D7261E")%>%
+  save_kable("./Fig3_sup2_BA_classic2.png")
+    
+```
+
+
+```{r Temporal Cortex table generation, echo=FALSE}
+
+subjectTable_phns_TC <- data.frame(subject=sub_label, 
+                           single=sin_mean_all[,2],
+                           diphone=di_mean_all[,2],
+                           triphone=tri_mean_all[,2], 
+                           dprime=dprime_ind_phns_all[,2], 
+                           single =sin_mean_all[,3], 
+                           diphone=di_mean_all[,3],
+                           triphone=tri_mean_all[,3], 
+                           dprime=dprime_ind_phns_all[,3], 
+                           single =sin_mean_all[,4], 
+                           diphone=di_mean_all[,4],
+                           triphone=tri_mean_all[,4],
+                           dprime=dprime_ind_phns_all[,4], 
+                           single=sin_mean_all[,5], 
+                           diphone=di_mean_all[,5],
+                           triphone=tri_mean_all[,5], 
+                           dprime=dprime_ind_phns_all[,5]
+                           )
+  
+  
+## Nothing significant in ACunique
+
+## STG
+STG_idx <- c(1, 3, 4, 5, 8, 10)
+STG_color <- c("#D7261E", "#D7261E", "#D7261E", "#D7261E","#D7261E","#FEF001")
+STG_headers <- c("single.1", "diphone.1", "triphone.1", "dprime.1")
+for (i in 1:length(STG_idx)) {
+  for (h in STG_headers){
+    subjectTable_phns_TC[h][[1]][STG_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable_phns_TC[h][[1]][STG_idx[i]]), fmt = '%#.3f'),  color = "white", background=STG_color[i], escape = F)
+  }
+}
+
+STG_tmp_idx <- c(2, 6, 7,9,11, 12, 13)
+for (i in 1:length(STG_tmp_idx)) {
+  for (h in STG_headers){
+    subjectTable_phns_TC[h][[1]][STG_tmp_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable_phns_TC[h][[1]][STG_tmp_idx[i]]), fmt = '%#.3f'),  color = "black", escape = F)
+  }
+}
+
+
+## STS
+STS_idx <- c(1, 2, 4, 5, 6, 7, 8, 9, 10, 11)
+STS_color <- c("#D7261E", "#D7261E", "#D7261E", "#D7261E","#D7261E","#D7261E", "#D7261E", "#D7261E", "#D7261E","#D7261E")
+STS_headers <- c("single.2", "diphone.2", "triphone.2", "dprime.2")
+for (i in 1:length(STS_idx)) {
+  for (h in STS_headers){
+    subjectTable_phns_TC[h][[1]][STS_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable_phns_TC[h][[1]][STS_idx[i]]), fmt = '%#.3f'),  color = "white", background=STS_color[i], escape = F)
+  }
+}
+
+STS_tmp_idx <- c(3, 12, 13)
+for (i in 1:length(STS_tmp_idx)) {
+  for (h in STS_headers){
+    subjectTable_phns_TC[h][[1]][STS_tmp_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable_phns_TC[h][[1]][STS_tmp_idx[i]]), fmt = '%#.3f'),  color = "black", escape = F)
+  }
+}
+
+
+## LTC
+LTC_idx <- c(1, 2, 5, 6, 7,9)
+LTC_color <- c("#FEF001", "#D7261E", "#FD6104", "#D7261E","#D7261E","#D7261E")
+LTC_headers <- c("single.3", "diphone.3", "triphone.3", "dprime.3")
+for (i in 1:length(LTC_idx)) {
+  for (h in LTC_headers){
+    subjectTable_phns_TC[h][[1]][LTC_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable_phns_TC[h][[1]][LTC_idx[i]]), fmt = '%#.3f'),  color = "white", background=LTC_color[i], escape = F)
+  }
+}
+
+LTC_tmp_idx <- c(3, 4, 8, 10, 11, 12, 13)
+for (i in 1:length(LTC_tmp_idx)) {
+  for (h in LTC_headers){
+    subjectTable_phns_TC[h][[1]][LTC_tmp_idx[i]] <- cell_spec(sprintf(as.numeric(subjectTable_phns_TC[h][[1]][LTC_tmp_idx[i]]), fmt = '%#.3f'),  color = "black", escape = F)
+  }
+}
+
+```
+
+```{r TC plot tests}
+
+subjectTable_phns_TC %>%
+  kbl(
+      caption = "Temporal Cortex", digits = 3, 
+      col.names = c("subject", "single","diphone","triphone","dprime",
+                    "single","diphone","triphone","dprime",
+                    "single","diphone","triphone","dprime",
+                    "single","diphone","triphone","dprime"),
+      escape=F) %>%
+  kable_classic_2(full_width = F, html_font = "Cambria")  %>%
+  add_header_above(c(" " = 1, "PAC" = 4, "STG" = 4, 
+                     "STS" = 4, "LTC" = 4))%>%
+  save_kable("./Fig3_sup2_TC_classic2.png")
+
+    
+```
