@@ -121,13 +121,6 @@ for (irois in 1:nrois) {
   for (sname in subject.names) {
    
     data.subject <- data_roi_phns[data_roi_phns$subjects==sname & data_roi_phns$rois==rois_name[irois], ]
-    # ## lmer test
-    # data_subj_phns_m <- lmer (performance ~ models + (1 | subjects), data.subject)
-    # data_subj_phns_null <- lmer (performance ~ 1 + (1 | subjects), data.subject)
-    # 
-    # a_phns<-anova(data_subj_phns_null, data_subj_phns_m, p.adj = "bonf")
-    # 
-    # print(sprintf('Subject %s Likelihood Ratio Test for WB : ChiSq(%d) = %.2f p=%.2g', subject.names,  a_phns$Df[2], a_phns$Chisq[2], a_phns$Pr[2]))
     
     ## paired one way anova test 
     res.aov <- aov(performance ~ models, data = data.subject, p.adjust.methods = "bonferroni")

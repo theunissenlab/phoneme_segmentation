@@ -161,13 +161,6 @@ for (irois_phns in 1:nrois_phns) {
   for (ihemi_phns in 1:nhemi_phns){
    
     data_sub<- filter(data_hemi_phns, rois == rois_name_phns[irois_phns] & hemis == hemi_name_phns[ihemi_phns])
-    # ## lmer test
-    # data_subj_phns_m <- lmer (performance ~ models + (1 | subjects), data.subject)
-    # data_subj_phns_null <- lmer (performance ~ 1 + (1 | subjects), data.subject)
-    # 
-    # a_phns<-anova(data_subj_phns_null, data_subj_phns_m, p.adj = "bonf")
-    # 
-    # print(sprintf('Subject %s Likelihood Ratio Test for WB : ChiSq(%d) = %.2f p=%.2g', subject.names,  a_phns$Df[2], a_phns$Chisq[2], a_phns$Pr[2]))
     
     ## paired one way anova test 
     res.aov <- aov(performance ~ models, data = data_sub, p.adjust.methods = "bonferroni")
