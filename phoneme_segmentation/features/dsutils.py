@@ -137,8 +137,8 @@ def make_diphone_ds(wordseqs, phonseqs, trfiles):
             ## index save the index for phon at the end of the word
             #print (tmax) 
             #print (np.where(np.abs(phonseqs[st].time_ends-tmax)<0.2)) 
-            #index=int(np.where(np.abs(phonseqs[st].time_ends-tmax)<0.1)[0][0])
-            index=int(np.where(np.abs(phonseqs[st].time_ends-tmax)<0.01)[0][0]) 
+            index=int(np.where(np.abs(phonseqs[st].time_ends-tmax)<0.1)[0][0])
+            #index=int(np.where(np.abs(phonseqs[st].time_ends-tmax)<0.01)[0][0]) 
             
             #index=int(np.where(phonseqs[st].time_ends==tmax)[0])
             if index==tmp_store:

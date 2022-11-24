@@ -1,6 +1,8 @@
 import numpy as np
 import tables
 from scipy.stats import zscore
+import operator
+from functools import reduce
 from phoneme_segmentation.config import pycortex_info
 
 from himalaya.backend import set_backend

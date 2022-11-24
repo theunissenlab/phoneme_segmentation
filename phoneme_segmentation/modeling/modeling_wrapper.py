@@ -1,7 +1,7 @@
-from .modeling_utils import run_himalaya
+from .modeling_utils import run_himalaya, stepwise_BOLD
 
-from Diphone.features.dsutils import save_table_file
-from Diphone.config import (
+from phoneme_segmentation.features.dsutils import save_table_file
+from phoneme_segmentation.config import (
         SUBJECTS_ALL,
         MODELS_ALL,
         MODEL_VP,

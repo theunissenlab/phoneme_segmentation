@@ -5,10 +5,11 @@ import numpy as np
 from math import *
 import matplotlib.pyplot as plt
 
-from .dsutils import load_generic_trfiles
+from .stimulus_utils import load_generic_trfiles
 from .interpdata import lanczosinterp2D
 from phoneme_segmentation.config import (
         WAV_DIR,
+        TRFILE_DIR,
         FEATURES_DIR,
         TRAIN_STORIES,
         TEST_STORIES
@@ -72,9 +73,6 @@ def wav2powspec(start_trim=5,
             stopTime = int(floor(TR*(i+1)*fs))
             [spec, fo, to] = makespectrogram(padSound[startTime:stopTime], fs, 32);
             specMatrix[i,:,:] = spec
-
-        ## save the data
-        specMatrix_all[fname] = specMatrix
 
         print (f"Find the maximum spectrogram in {story}")
         specMax = specMatrix.max()

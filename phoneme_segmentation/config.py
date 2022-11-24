@@ -1,7 +1,8 @@
 import os
 
 LOCAL_DIR = os.path.realpath(__file__)
-ROOT_DIR = LOCAL_DIR.split('/phoneme_segmentation')[0]
+ROOT_DIR = f"{LOCAL_DIR.split('/phoneme_segmentation')[0]}/phoneme_segmentation"
+print(ROOT_DIR)
 
 WAV_DIR = f"{ROOT_DIR}/stimuli/"
 DATA_DIR = f"{ROOT_DIR}/data/derivative/"
@@ -18,6 +19,34 @@ TRAIN_STORIES = ['alternateithicatom',
                 'souls',
                 'undertheinfluence']
 TEST_STORIES = ["wheretheressmoke"]
+
+
+TRAIN_STORIES_5SESSIONS = sorted(['myfirstdaywiththeyankees',
+                 'stagefright',
+                 'thatthingonmyarm',
+                 'eyespy',
+                 'inamoment',
+                 'legacy',
+                 'hangtime',
+                 'fromboyhoodtofatherhood',
+                 'tildeath',
+                 'alternateithicatom',
+                 'haveyoumethimyet',
+                 'adventuresinsayingyes',
+                 'avatar',
+                 'life',
+                 'swimmingwithastronauts',
+                 'buck',
+                 'souls',
+                 'naked',
+                 'howtodraw',
+                 'itsabox',
+                 'undertheinfluence',
+                 'adollshouse',
+                 'exorcism',
+                 'sloth',
+                 'odetostepfather',
+                 'theclosetthatateeverything'])
 
 FEATURES_DIR = f"{DATA_DIR}/features/"
 ENG1000_PATH = f"{FEATURES_DIR}/english1000.hf5"
@@ -39,9 +68,6 @@ pycortex_info = {
     "S10": dict(subject="S10fs", xfmname="S10_auto"),
     "S11": dict(subject="S11fs", xfmname="S11_auto") 
 }
-
-
-
 
 MODEL_DIR = f"{ROOT_DIR}/model"
 MODELS_ALL = ["baseline", "firstOrder", "secondOrder", "thirdOrder", "toSemAll"]
