@@ -109,8 +109,8 @@ def run_himalaya(subject,
         pred_train_prep = {features[f_i]: np.dot(Xs_train[f_i], primal_wts[f_i]) for f_i in range(len(features))} 
         pred_test_prep =  {features[f_i]: np.dot(Xs_test[f_i], primal_wts[f_i]) for f_i in range(len(features))}
 
-        pred_train = reduce(operator.add, [np.nan_to_num(pred_train_all[i]) for i in pred_train_prep.keys()])
-        pred_test = reduce(operator.add, [np.nan_to_num(pred_test_all[i]) for i in pred_test_prep.keys()])
+        pred_train = reduce(operator.add, [np.nan_to_num(pred_train_prep[i]) for i in pred_train_prep.keys()])
+        pred_test = reduce(operator.add, [np.nan_to_num(pred_test_prep[i]) for i in pred_test_prep.keys()])
 
         save_table_file(output, dict(deltas = deltas, dual_weights = dual_weights, cv_scores = cv_scores, scores=scores, scores_all=scores_all, pred_train = pred_train, pred_test = pred_test))
 
