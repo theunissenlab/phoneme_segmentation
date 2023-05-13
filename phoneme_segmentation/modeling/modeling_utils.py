@@ -20,7 +20,7 @@ from Diphone.features.dsutils import (
 
 from Diphone.config import (
         BOLD_DIR,
-        FEATURES_MATRIX_PATH
+        FEATURES_MATRIX_PATH,
         MODEL_DIR,
         MODEL_FEATURE_MATRIX
     )
@@ -36,7 +36,7 @@ def run_himalaya(subject,
                 n_targets_batch=1000,
                 n_alphas_batch=20,
                 return_weights="dual",
-                n_targets_batch_refit=200)
+                n_targets_batch_refit=200):
 
     if model == "baseline":
         BOLD_f = tables.open_file(f"{BOLD_DIR}/{subject}_BOLD.hf5")
@@ -102,7 +102,7 @@ def run_himalaya(subject,
     n_targets_batch=n_targets_batch, score_func=r2_score_split)
     scores_all = backend.to_numpy(scores_all)
 
-    output = f"{MODEL_DIR}/{subject}_{model}_himalaya_modeling_res.hf5"
+    output = f"{MODEL_DIR}/{subject}_{model}_himalaya_modeling_res.hdf"
     
     if model == "baseline":
         primal_wts = primal_weights_weighted_kernel_ridge(dual_weights, deltas, Xs_train)
@@ -119,13 +119,27 @@ def run_himalaya(subject,
 
     return scores_all
 
+def calc_primal_wts_wasabi(features:list,
+                            res_dir:str,
+                            root_path="moth_listening_en"
+                        ):
+
+    Xs_train = [np.nan_to_num(make_delayed(cci.download_raw_array(os.path.join(root_path, f"Features/{f}_train")), delays)) for f in features]
+ 
+    wts_dual = cci.download_raw_array(os.path.join(res_dir, "dual_weights"))
+    deltas = cci.download_raw_array(os.path.join(res_dir, "deltas"))
+
+    pred = predict_weighted_kernel_ridge(Xs_test, wts_dual, deltas)
+
+    return pred
+
 def stepwise_BOLD(subject:str, 
                 model:str):
-    BOLD_f = tables.open_file(f"{BOLD_DIR}/{subject}_BOLD.hf5")
+    BOLD_f = tables.open_file(f"{BOLD_DIR}/{subject}_BOLD.hdf")
     Y_train = backend.asarray(np.nan_to_num(BOLD_f.root.zRresp.read()))
     Y_test = backend.asarray(np.nan_to_num(BOLD_f.root.zPresp.read()))
 
-    MODEL_f = tables.open_file(f"{MODEL_DIR}/{subject}_{model}/himalaya_modeling_res.hf5")
+    MODEL_f = tables.open_file(f"{MODEL_DIR}/{subject}_{model}/himalaya_modeling_res.hdf")
     pred_train = backend.asarray(np.nan_to_num(MODEL_f.root.pred_train.read()))
     pred_test = backend.asarray(np.nan_to_num(MODEL_f.root.pred_test.read()))
 
@@ -135,7 +149,7 @@ def stepwise_BOLD(subject:str,
     zRresp_new = zscore(Rresp_new, axis = 0)
     zPresp_new = zscore(Presp_new, axis = 0)
 
-    save_table_file(f"{BOLD_DIR}/{subject}_BOLD_baseline_stepwised.hf5", dict(zRresp=zRresp_new, zPresp=zPresp_new))
+    save_table_file(f"{BOLD_DIR}/{subject}_BOLD_baseline_stepwised.hdf", dict(zRresp=zRresp_new, zPresp=zPresp_new))
 
 def plot_flatmap(subject:str, 
                 performance, 
