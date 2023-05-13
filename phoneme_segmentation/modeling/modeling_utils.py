@@ -13,12 +13,12 @@ from himalaya.scoring import r2_score_split
 from himalaya.viz import plot_alphas_diagnostic
 print(__doc__)
 
-from Diphone.features.dsutils import (
+from phoneme_segmentation.features.dsutils import (
         make_delayed,
         save_table_file
     )
 
-from Diphone.config import (
+from phoneme_segmentation.config import (
         BOLD_DIR,
         FEATURES_MATRIX_PATH,
         MODEL_DIR,
@@ -39,9 +39,9 @@ def run_himalaya(subject,
                 n_targets_batch_refit=200):
 
     if model == "baseline":
-        BOLD_f = tables.open_file(f"{BOLD_DIR}/{subject}_BOLD.hf5")
+        BOLD_f = tables.open_file(f"{BOLD_DIR}/{subject}_BOLD.hdf")
     else:
-        BOLD_f = tables.open_file(f"{BOLD_DIR}/{subject}_BOLD_baseline_stepwised.hf5")
+        BOLD_f = tables.open_file(f"{BOLD_DIR}/{subject}_BOLD_baseline_stepwised.hdf")
 
     Y_train = backend.asarray(np.nan_to_num(BOLD_f.root.zRresp.read()))
     Y_test = backend.asarray(np.nan_to_num(BOLD_f.root.zPresp.read()))
