@@ -1,22 +1,17 @@
+import os
 import numpy as np
+from scipy import optimize
+import cortex
+import matplotlib.pyplot as plt
 
 from himalaya.kernel_ridge import WeightedKernelRidge
 from himalaya.kernel_ridge import ColumnKernelizer
 from himalaya.kernel_ridge import Kernelizer
 from sklearn.pipeline import make_pipeline
 
-import cottoncandy as cc
-cci = cc.get_interface("glab-xgong-speech")
-
-import sys  
-sys.path.append('/home/jlg/lilly/gbox/repository/speech/scripts/utils')
-from util import make_delayed
-import os
-
-import matplotlib.pyplot as plt
-
-import cortex
-from scipy import optimize
+from phoneme_segmentation.features.dsutils import (
+        make_delayed,
+    )
 
 B = np.array([[0, 0, 0, 0, 0, -1, 1], # Abc
               [0, 0, 0, 0, -1, 0, 1], # aBc
@@ -85,10 +80,6 @@ def run_vp(n_feature_lists,
     print(column_kernelizer)
 
     from himalaya.kernel_ridge import WeightedKernelRidge
-    # model_all_test = WeightedKernelRidge(alpha = best_alphas, deltas=deltas,
-    #                                     kernels = "precomputed")
-
-    ## after discussing with Tom
     model_all_test = WeightedKernelRidge(alpha = 1, deltas=deltas,
                                         kernels = "precomputed")
 
