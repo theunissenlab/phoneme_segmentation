@@ -10,7 +10,9 @@ This repository contains code used to perform the analysis for the paper:
 
 Dataset used in the paper can be found [here](https://gin.g-node.org/gallantlab/story_listening)
 
-The code in this repository is used to perform the analysis with the paper: Phonemic segmentation of narrative speech in human cerebral cortex
+If you publish any work using the code in this repository, please cite the original publication [1], and cite this repository in the following recomended format:
+
+**[1]** Gong, X., Huth, A. G., Gallant, J. L., & Theunissen, F. E.. Phoneme segmentation analysis. DOI: https://zenodo.org/badge/latestdoi/547471345
 
 ## How to get started
 ```bash
