@@ -1,0 +1,10 @@
+cff-version: 0.0.1
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Gong
+    given-names: Xue
+    orcid: ORCID:0000-0001-7656-525X
+title: "Phoneme Segmentation"
+version: 0.0.1
+doi: 10.5281/zenodo.7938599
+date-released: 2023-05-19
