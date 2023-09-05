@@ -1,5 +1,7 @@
 ## phoneme_segmentation
 
+Speech processing requires extracting meaning from acoustic patterns using a set of intermediate representations based on a dynamic segmentation of the speech stream. Using whole brain mapping obtained in fMRI, we investigate the locus of cortical phonemic processing not only for single phonemes but also for short combinations made of diphones and triphones. We find that phonemic processing areas are much larger than previously described: they include not only the classical areas in the dorsal superior temporal gyrus but also a larger region in the lateral temporal cortex where diphone features are best represented. These identified phonemic regions overlap with the lexical retrieval region, but we show that short word retrieval is not sufficient to explain the observed responses to diphones. Behavioral studies have shown that phonemic processing and lexical retrieval are intertwined. Here, we also have identified candidate regions within the speech cortical network where this joint processing occurs.
+
 ## Summary
 
 This repository contains code used to perform the analysis for the paper:
