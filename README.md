@@ -6,9 +6,9 @@ Speech processing requires extracting meaning from acoustic patterns using a set
 
 This repository contains code used to perform the analysis for the paper:
 
-> **[1]** Gong, X., Huth, A. G., Deniz, F., Johnson, K., Gallant, J. L., & Theunissen, F. E..
+> **[1]** Gong, X., Huth, A. G., Deniz, F., Johnson, K., Gallant, J. L., & Theunissen, F. E. (2023).
 > Phonemic segmentation of narrative speech in human cerebral cortex.
-> Nature Communications, (2023). https://doi.org/
+> Nature Communications, 14(1), 4309.
 
 Dataset used in the paper can be found [here](https://gin.g-node.org/gallantlab/story_listening)
 
